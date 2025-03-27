@@ -5,5 +5,5 @@ Capabilities:
 - Get requester IP
 - Get requester User Agent
 - Get an UUID V4
-
+- Base64 Decode/Encode 
 
