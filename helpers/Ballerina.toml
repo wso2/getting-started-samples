@@ -1,5 +1,5 @@
 [package]
-org = "isabelle"
+org = "wso2_samples"
 name = "helpers"
 version = "0.1.0"
 distribution = "2201.12.2"

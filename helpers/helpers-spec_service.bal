@@ -7,7 +7,7 @@ import ballerina/mime;
 import ballerina/uuid;
 import ballerinax/openai.chat;
 
-configurable string OPENAI_KEY = ?;
+configurable string openAIKey = ?;
 
 configurable string host = "localhost";
 configurable int port = 8081;
@@ -16,21 +16,29 @@ configurable string aiModel = "gpt-4o-mini";
 
 // Constants
 final int MAX_BASE64_STRING_SIZE = 100;
+final string[] targetHeaders = ["X-Forwarded-For", "X-Client-IP", "Via", "X-Real-IP"];
+final string basePrompt = "Fix grammar and spelling mistakes of this content: ";
+final string:RegExp decode_pattern = re `^[0-9a-zA-Z=\s]+$`;
+final string:RegExp encode_pattern = re `^[0-9a-zA-Z\s!$-_]+$`;
+
+//AI Variables
+final http:RetryConfig retryConfig = {
+            interval: 5, // Initial retry interval in seconds.
+            count: 3, // Number of retry attempts before stopping.
+            backOffFactor: 2.0 // Multiplier of the retry interval.
+        };
+
+final chat:Client openAIChat = check new ({auth: {token: openAIKey}, retryConfig});
 
 listener http:Listener main_endpoint = new (port, config = {host});
 
-function getSpecificHeaders(http:Headers headers) returns map<string>|error {
-    map<string> headerMap = {};
-    string[] targetHeaders = ["X-Forwarded-For", "X-Client-IP", "Via", "X-Real-IP"];
 
-    foreach string header in targetHeaders {
-        if headers.hasHeader(headerName = header) {
-            string headerValue = check headers.getHeader(headerName = header);
-            headerMap[header] = headerValue;
-        }
-    }
-    return headerMap;
-}
+
+function searchClientIpHeaders(http:Headers headers) returns map<string>|error =>  
+    map from string header in ["X-Forwarded-For", "X-Client-IP", "Via", "X-Real-IP"]  
+        where headers.hasHeader(header)  
+        select [header, check headers.getHeader(header)];  
+
 
 service / on main_endpoint {
     # Returns the client IP address.
@@ -42,9 +50,9 @@ service / on main_endpoint {
 
         ip_response response;
         do {
-            response = {"origin": hc.remoteAddress.ip};
+            response = {origin: hc.remoteAddress.ip};
         } on fail {
-            response = {"origin": "unknown"};
+            response = {origin: "unknown"};
         }
         check hc->respond(response);
     }
@@ -53,11 +61,11 @@ service / on main_endpoint {
     # + return - returns a map of headers or error
     resource function get headers(http:Headers headers) returns specific_headers_response|Error_serverFailure {
         do {
-            map<string> filteredHeaders = check getSpecificHeaders(headers = headers);
+            map<string> filteredHeaders = check searchClientIpHeaders(headers);
             specific_headers_response response = {headers: filteredHeaders};
             return response;
         } on fail error e {
-            log:printError("Error retrieving headers", 'error = e, stackTrace = e.stackTrace());
+            log:printError("Error retrieving headers", e, e.stackTrace());
             Error_serverFailure response = {
                 body: {
                     message: "Failed to retrieve headers",
@@ -91,8 +99,8 @@ service / on main_endpoint {
             uuid_response response = {"uuid": tempUuid};
             return response;
         } on fail error e {
-            log:printDebug("UUID Generated failed: " + e.toString());
-            Error_serverFailure response = {body: {"message": "failed to create UUID", "code": "err_001"}};
+            log:printError("UUID Generated failed: " + e.toString());
+            Error_serverFailure response = {body: {message: "failed to create UUID", code: "err_001"}};
             return response;
         }
     }
@@ -102,24 +110,23 @@ service / on main_endpoint {
         log:printDebug("Incoming text: " + value);
 
         if (value.length() > MAX_BASE64_STRING_SIZE) {
-            Error_responseBadRequest response = {body: {"message": "String is too large. Sorry.", "code": "err_002"}};
+            Error_responseBadRequest response = {body: {message: "String is too large. Sorry.", code: "err_002"}};
             return response;
         }
-        string:RegExp pattern = re `^[0-9a-zA-Z=]+$`;
 
-        if ((value.matches(pattern)) is false) {
-            Error_responseBadRequest response = {body: {"message": "Invalid characters. Sorry.", "code": "err_003"}};
+        if !value.matches(decode_pattern) {  
+            Error_responseBadRequest response = {body: {message: "Invalid characters. Sorry.", code: "err_003"}};
             return response;
         }
         string|error decodedValue = mime:base64Decode(value).ensureType(string);
 
         if (decodedValue is string) {
             Base64_responseOk response = {body: {"value": decodedValue}};
-            log:printDebug("Decoded Value OK  " + decodedValue);
+            log:printDebug("Decoded data: " + decodedValue);
             return response;
         } else {
-            Error_responseBadRequest response = {body: {"message": "unable to decode", "code": "err_004"}};
-            log:printDebug("Error decoding text: " + decodedValue.toString());
+            Error_responseBadRequest response = {body: {message: "unable to decode", code: "err_004"}};
+            log:printError("Error occurred while decoding " + decodedValue.toString());
             return response;
         }
     }
@@ -129,17 +136,16 @@ service / on main_endpoint {
 
         // Validate incoming string 
         if (value.length() > MAX_BASE64_STRING_SIZE) {
-            Error_responseBadRequest response = {body: {"message": "String is too large. Sorry.", "code": "err_002"}};
-            return response;
-        }
-        string:RegExp pattern = re `^[0-9a-zA-Z\\s!$-_]+$`;
-
-        if (pattern.isFullMatch(value) is false) {
-            Error_responseBadRequest response = {body: {"message": "Invalid characters. Sorry.", "code": "err_003"}};
+            Error_responseBadRequest response = {body: {message: "String is too large. Sorry.", code: "err_002"}};
             return response;
         }
 
-        string|error encodedValue = mime:base64Encode(value).ensureType(string);
+        if !encode_pattern.isFullMatch(value) {
+            Error_responseBadRequest response = {body: {message: "Invalid characters. Sorry.", code: "err_003"}};
+            return response;
+        }
+
+        string|error encodedValue = mime:base64Encode(value).ensureType();
 
         if (encodedValue is string) {
             Base64_responseOk response = {body: {"value": encodedValue}};
@@ -147,23 +153,15 @@ service / on main_endpoint {
             return response;
         }
         else {
-            Error_responseBadRequest response = {body: {"message": "unable to encode", "code": "err_006"}};
+            Error_responseBadRequest response = {body: {message: "unable to encode", code: "err_006"}};
             log:printDebug("Error encoding text:  " + encodedValue.toString());
             return response;
         }
     }
 
     resource function post ai/spelling(@http:Payload ai_spelling_payload data) returns error|ai_spelling_responseOk|Error_responseBadRequest {
-        http:RetryConfig retryConfig = {
-            interval: 5, // Initial retry interval in seconds.
-            count: 3, // Number of retry attempts before stopping.
-            backOffFactor: 2.0 // Multiplier of the retry interval.
-        };
-
-        final chat:Client openAIChat = check new ({auth: {token: OPENAI_KEY}, retryConfig});
 
         // Extract body contents
-        string basePrompt = "Fix grammar and spelling mistakes of this content: ";
 
         chat:CreateChatCompletionRequest request = {
             model: aiModel,
