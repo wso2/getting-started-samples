@@ -39,7 +39,11 @@ public type error_response record {|
 |};
 
 public type uuid_response record {|
-    @constraint:String {maxLength: 36, minLength: 36, pattern: re `^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`}
+    @constraint:String {
+        maxLength: 36, 
+        minLength: 36, 
+        pattern: re `^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`
+    }
     string uuid?;
 |};
 

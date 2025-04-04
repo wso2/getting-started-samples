@@ -15,14 +15,14 @@ configurable int port = 8081;
 configurable string aiModel = "gpt-4o-mini";
 
 // Constants
-final int MAX_BASE64_STRING_SIZE = 100;
-final string[] targetHeaders = ["X-Forwarded-For", "X-Client-IP", "Via", "X-Real-IP"];
-final string basePrompt = "Fix grammar and spelling mistakes of this content: ";
+const int MAX_BASE64_STRING_SIZE = 100;
+const string[] targetHeaders = ["X-Forwarded-For", "X-Client-IP", "Via", "X-Real-IP"];
+const string basePrompt = "Fix grammar and spelling mistakes of this content: ";
 final string:RegExp decode_pattern = re `^[0-9a-zA-Z=\s]+$`;
 final string:RegExp encode_pattern = re `^[0-9a-zA-Z\s!$-_]+$`;
 
 //AI Variables
-final http:RetryConfig retryConfig = {
+final readonly & http:RetryConfig retryConfig = {
             interval: 5, // Initial retry interval in seconds.
             count: 3, // Number of retry attempts before stopping.
             backOffFactor: 2.0 // Multiplier of the retry interval.
@@ -33,9 +33,8 @@ final chat:Client openAIChat = check new ({auth: {token: openAIKey}, retryConfig
 listener http:Listener main_endpoint = new (port, config = {host});
 
 
-
 function searchClientIpHeaders(http:Headers headers) returns map<string>|error =>  
-    map from string header in ["X-Forwarded-For", "X-Client-IP", "Via", "X-Real-IP"]  
+    map from string header in targetHeaders 
         where headers.hasHeader(header)  
         select [header, check headers.getHeader(header)];  
 
@@ -54,7 +53,10 @@ service / on main_endpoint {
         } on fail {
             response = {origin: "unknown"};
         }
-        check hc->respond(response);
+        error? res = hc->respond(response);
+        if res is error {
+            log:printError("Error responding to the client", res);
+        }
     }
 
     # Returns all HTTP headers from the request
@@ -62,17 +64,16 @@ service / on main_endpoint {
     resource function get headers(http:Headers headers) returns specific_headers_response|Error_serverFailure {
         do {
             map<string> filteredHeaders = check searchClientIpHeaders(headers);
-            specific_headers_response response = {headers: filteredHeaders};
-            return response;
+            // Ballerina will automatically infer the type and map the record structure.
+            return {headers: filteredHeaders};  
         } on fail error e {
             log:printError("Error retrieving headers", e, e.stackTrace());
-            Error_serverFailure response = {
-                body: {
-                    message: "Failed to retrieve headers",
-                    code: "err_007"
-                }
-            };
-            return response;
+            return <Error_serverFailure> {  
+                body: {  
+                    message: "Failed to retrieve headers",  
+                    code: "err_007"  
+                }  
+            };  
         }
     }
 
@@ -95,7 +96,6 @@ service / on main_endpoint {
 
         do {
             string tempUuid = uuid:createRandomUuid();
-            log:printDebug("Generated UUID: " + tempUuid);
             uuid_response response = {"uuid": tempUuid};
             return response;
         } on fail error e {
@@ -109,7 +109,7 @@ service / on main_endpoint {
         // Validate incoming string 
         log:printDebug("Incoming text: " + value);
 
-        if (value.length() > MAX_BASE64_STRING_SIZE) {
+        if value.length() > MAX_BASE64_STRING_SIZE {
             Error_responseBadRequest response = {body: {message: "String is too large. Sorry.", code: "err_002"}};
             return response;
         }
@@ -118,7 +118,7 @@ service / on main_endpoint {
             Error_responseBadRequest response = {body: {message: "Invalid characters. Sorry.", code: "err_003"}};
             return response;
         }
-        string|error decodedValue = mime:base64Decode(value).ensureType(string);
+        string|error decodedValue = mime:base64Decode(value).ensureType();
 
         if (decodedValue is string) {
             Base64_responseOk response = {body: {"value": decodedValue}};
