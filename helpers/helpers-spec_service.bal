@@ -18,8 +18,8 @@ configurable string aiModel = "gpt-4o-mini";
 const int MAX_BASE64_STRING_SIZE = 100;
 const string[] targetHeaders = ["X-Forwarded-For", "X-Client-IP", "Via", "X-Real-IP"];
 const string basePrompt = "Fix grammar and spelling mistakes of this content: ";
-final string:RegExp decode_pattern = re `^[0-9a-zA-Z=\s]+$`;
-final string:RegExp encode_pattern = re `^[0-9a-zA-Z\s!$-_]+$`;
+final string:RegExp decode_pattern = re `^[0-9a-zA-Z=]+$`;
+final string:RegExp encode_pattern = re `^[0-9a-zA-Z\s!$-_çñÇÑ]+$`;
 
 //AI Variables
 final readonly & http:RetryConfig retryConfig = {
@@ -65,7 +65,7 @@ service / on main_endpoint {
         do {
             map<string> filteredHeaders = check searchClientIpHeaders(headers);
             // Ballerina will automatically infer the type and map the record structure.
-            return {headers: filteredHeaders};  
+            return {headers: filteredHeaders};
         } on fail error e {
             log:printError("Error retrieving headers", e, e.stackTrace());
             return <Error_serverFailure> {  
@@ -96,8 +96,10 @@ service / on main_endpoint {
 
         do {
             string tempUuid = uuid:createRandomUuid();
-            uuid_response response = {"uuid": tempUuid};
-            return response;
+            //Next 2 lines are equivalent to:
+            //uuid_response response = {uuid: tempUuid};
+            //return response;
+            return  {uuid: tempUuid};
         } on fail error e {
             log:printError("UUID Generated failed: " + e.toString());
             Error_serverFailure response = {body: {message: "failed to create UUID", code: "err_001"}};
@@ -106,60 +108,53 @@ service / on main_endpoint {
     }
 
     resource function post 'base64/decode/[string value]() returns Base64_responseOk|Error_responseBadRequest {
-        // Validate incoming string 
-        log:printDebug("Incoming text: " + value);
+        // Validate incoming string
+        log:printDebug("Incoming text", value = value);
 
         if value.length() > MAX_BASE64_STRING_SIZE {
-            Error_responseBadRequest response = {body: {message: "String is too large. Sorry.", code: "err_002"}};
-            return response;
+            return {body: {message: "String is too long. Sorry.", code: "err_002"}};
         }
 
         if !value.matches(decode_pattern) {  
-            Error_responseBadRequest response = {body: {message: "Invalid characters. Sorry.", code: "err_003"}};
-            return response;
+            return {body: {message: "Invalid characters. Sorry.", code: "err_003"}};
         }
         string|error decodedValue = mime:base64Decode(value).ensureType();
 
         if (decodedValue is string) {
-            Base64_responseOk response = {body: {"value": decodedValue}};
-            log:printDebug("Decoded data: " + decodedValue);
-            return response;
+            log:printDebug("Decoded text", value =  decodedValue);
+            return {body: {value: decodedValue}};
         } else {
-            Error_responseBadRequest response = {body: {message: "unable to decode", code: "err_004"}};
-            log:printError("Error occurred while decoding " + decodedValue.toString());
-            return response;
+            log:printError("Decoding error: " + decodedValue.toString());
+            return  {body: {message: "unable to decode", code: "err_004"}};
         }
     }
 
     resource function post 'base64/encode/[string value]() returns Base64_responseOk|Error_responseBadRequest {
-        log:printDebug("Inbound Value  " + value);
+        log:printDebug("Encoding text", value = value);
 
         // Validate incoming string 
         if (value.length() > MAX_BASE64_STRING_SIZE) {
-            Error_responseBadRequest response = {body: {message: "String is too large. Sorry.", code: "err_002"}};
-            return response;
+            return {body: {message: "String is too large. Sorry.", code: "err_002"}};
         }
 
         if !encode_pattern.isFullMatch(value) {
-            Error_responseBadRequest response = {body: {message: "Invalid characters. Sorry.", code: "err_003"}};
-            return response;
+            return  {body: {message: "Invalid characters. Sorry.", code: "err_003"}};
         }
 
         string|error encodedValue = mime:base64Encode(value).ensureType();
 
         if (encodedValue is string) {
             Base64_responseOk response = {body: {"value": encodedValue}};
-            log:printDebug("Encoded Value: " + encodedValue);
+            log:printDebug("Encoded text", encodedValue = encodedValue);
             return response;
-        }
-        else {
+        } else {
             Error_responseBadRequest response = {body: {message: "unable to encode", code: "err_006"}};
-            log:printDebug("Error encoding text:  " + encodedValue.toString());
+            log:printDebug("Encoding error: " + encodedValue.toString());
             return response;
         }
     }
 
-    resource function post ai/spelling(@http:Payload ai_spelling_payload data) returns error|ai_spelling_responseOk|Error_responseBadRequest {
+    resource function post ai/spelling(@http:Payload ai_spelling_payload data) returns ai_spelling_responseOk|Error_responseBadRequest|error {
 
         // Extract body contents
 
@@ -176,11 +171,9 @@ service / on main_endpoint {
         string? correctedText = ai_response.choices[0].message.content;
 
         if (correctedText is ()) {
-            Error_responseBadRequest http_response = {body: {"message": "Could not correct grammar/spelling", "code": "err_008"}};
-            return http_response;
+            return  {body: {message: "Could not correct grammar/spelling", code: "err_008"}};
         } else {
-            ai_spelling_responseOk http_response = {body: {correctedText}};
-            return http_response;
+            return  {body: {correctedText}};
         }
 
     }
