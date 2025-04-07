@@ -1,0 +1,11 @@
+schemaVersion: 1.2
+endpoints:
+    - name: helpers-api
+      displayName: helpers-api
+      service:
+        basePath: /
+        port: 8081
+      type: REST
+      networkVisibilities:
+        - Public
+      schemaFilePath: helpers-spec.yaml
