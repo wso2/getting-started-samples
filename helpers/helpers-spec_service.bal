@@ -21,7 +21,7 @@ const string basePrompt = "Fix grammar and spelling mistakes of this content: ";
 final string:RegExp decode_pattern = re `^[0-9a-zA-Z=]+$`;
 final string:RegExp encode_pattern = re `^[0-9a-zA-Z\s!$-_çñÇÑ]+$`;
 
-const map<float> RATES_TO_USD = {
+const map<decimal> RATES_TO_USD = {
     "USD": 1.0,
     "EUR": 1.09,
     "GBP": 1.25,
@@ -191,23 +191,24 @@ service / on main_endpoint {
 
     resource function post currency/rate(curreny_converter_payload payload) returns curreny_converter_responseOk|Error_responseBadRequest|error {
 
-        float? fromRate = RATES_TO_USD[payload.fromCurrency];
-        float? toRate = RATES_TO_USD[payload.toCurrency];
+        curreny_converter_payload {fromCurrency, toCurrency} = payload;
+
+        decimal? fromRate = RATES_TO_USD[fromCurrency.trim().toUpperAscii()];
+        decimal? toRate = RATES_TO_USD[toCurrency.trim().toUpperAscii()];
 
         if fromRate == () || toRate == () {
-            Error_responseBadRequest response = {
+            return {
                 body: {
-                    message: "One or both currencies are not supported. Supported currencies are: USD, EUR, GBP, JPY, AUD, CAD, INR, LKR",
+                    message: "One or both currencies are not supported. Supported currencies are: " + RATES_TO_USD.keys().toString(),
                     code: "err_009"
                 }
             };
-            return response;
         }
-        float effectiveRate = fromRate / toRate;
+        decimal effectiveRate = fromRate / toRate;
         return {
             body: {
-                fromCurrency: payload.fromCurrency,
-                toCurrency: payload.toCurrency,
+                fromCurrency: fromCurrency,
+                toCurrency: toCurrency,
                 rate: effectiveRate
             }
         };
