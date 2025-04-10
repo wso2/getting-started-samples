@@ -76,3 +76,19 @@ public type ai_spelling_responseOk record {|
     *http:Ok;
     ai_spelling_response body;
 |};
+
+public type curreny_converter_payload record {|
+    string fromCurrency;
+    string toCurrency;
+|};
+
+public type curreny_converter_response record {|
+    string fromCurrency;
+    string toCurrency;
+    decimal rate;
+|};
+
+public type curreny_converter_responseOk record {|
+    *http:Ok;
+    curreny_converter_response body;
+|};
