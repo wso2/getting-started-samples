@@ -21,6 +21,17 @@ const string basePrompt = "Fix grammar and spelling mistakes of this content: ";
 final string:RegExp decode_pattern = re `^[0-9a-zA-Z=]+$`;
 final string:RegExp encode_pattern = re `^[0-9a-zA-Z\s!$-_çñÇÑ]+$`;
 
+const map<decimal> RATES_TO_USD = {
+    "USD": 1.0,
+    "EUR": 1.09,
+    "GBP": 1.25,
+    "JPY": 0.0066,
+    "AUD": 0.67,
+    "CAD": 0.74,
+    "INR": 0.012,
+    "LKR": 0.0033
+};
+
 //AI Variables
 final readonly & http:RetryConfig retryConfig = {
             interval: 5, // Initial retry interval in seconds.
@@ -178,4 +189,28 @@ service / on main_endpoint {
 
     }
 
+    resource function post currency/rate(curreny_converter_payload payload) returns curreny_converter_responseOk|Error_responseBadRequest|error {
+
+        curreny_converter_payload {fromCurrency, toCurrency} = payload;
+
+        decimal? fromRate = RATES_TO_USD[fromCurrency.trim().toUpperAscii()];
+        decimal? toRate = RATES_TO_USD[toCurrency.trim().toUpperAscii()];
+
+        if fromRate == () || toRate == () {
+            return {
+                body: {
+                    message: "One or both currencies are not supported. Supported currencies are: " + RATES_TO_USD.keys().toString(),
+                    code: "err_009"
+                }
+            };
+        }
+        decimal effectiveRate = fromRate / toRate;
+        return {
+            body: {
+                fromCurrency: fromCurrency,
+                toCurrency: toCurrency,
+                rate: effectiveRate
+            }
+        };
+    }
 }
