@@ -172,6 +172,20 @@ paths:
                 $ref: '#/components/schemas/error_response'
         "500":
           $ref: '#/components/responses/error'
+  /countries:
+    get:
+      operationId: getCountries
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Country'
+        "500":
+          description: InternalServerError
 
 components:
   schemas:
@@ -248,6 +262,37 @@ components:
           type: string
         toCurrency:
           type: string
+    Country:
+      required:
+      - area
+      - capital
+      - continent
+      - currency
+      - gdp
+      - languages
+      - name
+      - population
+      type: object
+      properties:
+        name:
+          type: string
+        capital:
+          type: string
+        continent:
+          type: string
+        population:
+          type: integer
+          format: int64
+        area:
+          type: number
+          format: float
+        languages:
+          type: string
+        currency:
+          type: string
+        gdp:
+          type: number
+          format: float
     ErrorPayload:
       required:
       - message
