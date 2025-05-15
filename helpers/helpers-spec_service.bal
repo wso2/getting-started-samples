@@ -218,17 +218,16 @@ service / on main_endpoint {
 
     resource function get countries() returns Country[]|http:InternalServerError {
 
-        // Read the CSV content as a string
         string|error csvContent = io:fileReadString("resources/countries.csv");
         if csvContent is error {
-            log:printError("Error reading CSV file", message = csvContent.message());
-            return <http:InternalServerError>{body: csvContent.message()};
+            log:printError("Failed to read countries CSV file", message = csvContent.message());
+            return <http:InternalServerError>{body: "Unable to load country data"};
         }
 
         Country[]|error countries = csv:parseString(csvContent);
         if countries is error {
-            log:printError("Error parsing CSV content", err = countries.message());
-            return <http:InternalServerError>{body: countries.message()};
+            log:printError("Failed to parse countries CSV content", message = countries.message());
+            return <http:InternalServerError>{body: "Unable to load country data"};
         }
         return countries;
     }
