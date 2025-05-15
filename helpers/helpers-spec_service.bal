@@ -221,7 +221,7 @@ service / on main_endpoint {
         // Read the CSV content as a string
         string|error csvContent = io:fileReadString("resources/countries.csv");
         if csvContent is error {
-            log:printError("Error reading CSV file", err = csvContent.message());
+            log:printError("Error reading CSV file", message = csvContent.message());
             return <http:InternalServerError>{body: csvContent.message()};
         }
 
