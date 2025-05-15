@@ -6,4 +6,5 @@ Capabilities:
 - Get requester User Agent
 - Get an UUID V4
 - Base64 Decode/Encode 
+- Get set of country information
 

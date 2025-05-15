@@ -216,7 +216,7 @@ service / on main_endpoint {
         };
     }
 
-    resource function get countries(http:Request req) returns Country[]|http:InternalServerError {
+    resource function get countries() returns Country[]|http:InternalServerError {
 
         // Read the CSV content as a string
         string|error csvContent = io:fileReadString("resources/countries.csv");
