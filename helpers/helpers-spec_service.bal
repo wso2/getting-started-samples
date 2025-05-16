@@ -6,6 +6,8 @@ import ballerina/log;
 import ballerina/mime;
 import ballerina/uuid;
 import ballerinax/openai.chat;
+import ballerina/data.csv;
+import ballerina/io;
 
 configurable string openAIKey = ?;
 
@@ -212,5 +214,21 @@ service / on main_endpoint {
                 rate: effectiveRate
             }
         };
+    }
+
+    resource function get countries() returns Country[]|http:InternalServerError {
+
+        string|error csvContent = io:fileReadString("resources/countries.csv");
+        if csvContent is error {
+            log:printError("Failed to read countries CSV file", message = csvContent.message());
+            return <http:InternalServerError>{body: "Unable to load country data"};
+        }
+
+        Country[]|error countries = csv:parseString(csvContent);
+        if countries is error {
+            log:printError("Failed to parse countries CSV content", message = countries.message());
+            return <http:InternalServerError>{body: "Unable to load country data"};
+        }
+        return countries;
     }
 }

@@ -92,3 +92,14 @@ public type curreny_converter_responseOk record {|
     *http:Ok;
     curreny_converter_response body;
 |};
+
+public type Country record {|
+    string name;
+    string capital;
+    string continent;
+    int population;
+    float area;
+    string languages;
+    string currency;
+    float gdp;
+|};
